@@ -13,7 +13,7 @@
 
 ## 安装
 
-需要先安装用户脚本管理器（[Tampermonkey](https://www.tampermonkey.net/) 或 Violentmonkey），然后访问 [Greasy Fork](https://greasyfork.org/zh-CN/scripts/560977) 安装脚本。脚本会在雀渣牌谱页面（`https://tziakcha.net/record/*`）自动启用。
+需要先安装用户脚本管理器（[Tampermonkey](https://www.tampermonkey.net/) 或 Violentmonkey），然后访问 <a href="https://greasyfork.org/zh-CN/scripts/560977"><img src="https://img.shields.io/badge/Greasy%20Fork-560977-grey.svg?colorA=900000&style=for-the-badge"></a> 安装脚本（或直接从本仓库下载/复制 [脚本代码](https://github.com/Choimoe/chaga-reviewer-script/blob/main/chaga_reviewer.user.js)）。脚本会在雀渣牌谱页面（`https://tziakcha.net/record/*`）自动启用。
 
 ## 功能
 
@@ -30,6 +30,4 @@
 ## 实现
 
 脚本通过拦截雀渣平台的 `TZ` 构造函数获取游戏实例，同步当前回放步数。分析数据从 CHAGA API（`https://tc-api.pesiu.org/review/`）异步获取，包含每个回合每个座位的候选打法和权重。对于缺失的中间步数，脚本会自动填充最近的有效数据以保持连续性。
-
-反馈请访问 [Greasy Fork 脚本页面](https://greasyfork.org/zh-CN/scripts/560977)。
 
