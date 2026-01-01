@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         雀渣 CHAGA 牌谱分析
-// @version      1.1
+// @version      1.2
 // @description  适用于雀渣平台的 CHAGA 牌谱分析工具
 // @author       Choimoe
 // @match        https://tziakcha.net/record/*
@@ -14,8 +14,18 @@
 (function() {
     'use strict';
  
+    const w = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
     let tzInstance = null;
+    let setReviewError = (msg) => {
+        w.__review_error = msg;
+        const reviewEl = document.getElementById('review');
+        if (reviewEl) {
+            reviewEl.innerText = msg;
+        }
+    };
+    w.setReviewError = setReviewError;
     const originalDefineProperty = Object.defineProperty;
+    const originalReflectDefineProperty = Reflect.defineProperty;
     
     const wrapTZ = (OriginalTZ) => {
         const WrappedTZ = function(...args) {
@@ -35,8 +45,36 @@
         return WrappedTZ;
     };
 
+    const installDefinePropertyHook = () => {
+        if (Object.defineProperty._tz_hooked) return;
+
+        const hook = function(target, prop, descriptor) {
+            if (target === w && prop === 'TZ' && descriptor && typeof descriptor.value === 'function' && !descriptor._tz_wrapped) {
+                descriptor = { ...descriptor, value: wrapTZ(descriptor.value), _tz_wrapped: true };
+                console.log('[Reviewer] Wrapped TZ via defineProperty hook');
+            }
+            return originalDefineProperty(target, prop, descriptor);
+        };
+
+        hook._tz_hooked = true;
+        Object.defineProperty = hook;
+
+        if (typeof originalReflectDefineProperty === 'function') {
+            const reflectHook = function(target, prop, descriptor) {
+                if (target === w && prop === 'TZ' && descriptor && typeof descriptor.value === 'function' && !descriptor._tz_wrapped) {
+                    descriptor = { ...descriptor, value: wrapTZ(descriptor.value), _tz_wrapped: true };
+                    console.log('[Reviewer] Wrapped TZ via Reflect.defineProperty hook');
+                }
+                return originalReflectDefineProperty(target, prop, descriptor);
+            };
+            reflectHook._tz_hooked = true;
+            Reflect.defineProperty = reflectHook;
+        }
+    };
+
     const interceptTZ = () => {
-        const existing = Object.getOwnPropertyDescriptor(window, 'TZ');
+        installDefinePropertyHook();
+        const existing = Object.getOwnPropertyDescriptor(w, 'TZ');
 
         if (!existing || existing.configurable) {
             const descriptor = {
@@ -56,7 +94,7 @@
                 }
             };
             try {
-                originalDefineProperty(window, 'TZ', descriptor);
+                originalDefineProperty(w, 'TZ', descriptor);
                 console.log('[Reviewer] TZ interceptor installed (configurable path)');
                 return;
             } catch (e) {
@@ -66,13 +104,16 @@
 
         if (existing && existing.writable === false) {
             console.warn('[Reviewer] TZ is non-configurable and non-writable; cannot intercept');
+            if (w.setReviewError) {
+                w.setReviewError('TZ 属性不可拦截，无法捕获牌局');
+            }
             return;
         }
 
         const tryPatch = () => {
-            if (typeof window.TZ === 'function' && !window._TZ_intercepted_direct) {
-                window._TZ_intercepted_direct = true;
-                window.TZ = wrapTZ(window.TZ);
+            if (typeof w.TZ === 'function' && !w._TZ_intercepted_direct) {
+                w._TZ_intercepted_direct = true;
+                w.TZ = wrapTZ(w.TZ);
                 console.log('[Reviewer] TZ interceptor installed (fallback patch)');
                 return true;
             }
@@ -96,12 +137,15 @@
     interceptTZ();
     
     const initReviewer = () => {
-        if (typeof WIND === 'undefined' || typeof TILE === 'undefined') {
+        if (typeof w.WIND === 'undefined' || typeof w.TILE === 'undefined') {
             console.log('[Reviewer] Waiting for game constants...');
             setTimeout(initReviewer, 100);
             return;
         }
         
+        const WIND = w.WIND;
+        const TILE = w.TILE;
+
         const style = document.createElement('style');
         style.textContent = `
             .highlight-first-tile {
@@ -191,9 +235,10 @@
                    WIND.findIndex((x) => x === roundStr[2]);
         };
  
-        window.__reviews = {};
-        window.__reviews_filled = {};
-        window.__reviews_seats = [undefined, undefined, undefined, undefined];
+        w.__reviews = {};
+        w.__reviews_filled = {};
+        w.__reviews_seats = [undefined, undefined, undefined, undefined];
+        w.__review_error = '';
         let highlightFirstTile = true;
         let showWeightBars = true;
         
@@ -264,10 +309,18 @@
             const round = parseRound(roundStr);
             const ri = getPlayerStep();
             
-            reviewLogEl.innerHTML = `CHAGA Reviewer [Step ${ri}] [Load ${window.__reviews_seats.map(fmtLoad).join(" ")}]`;
+            reviewLogEl.innerHTML = `CHAGA Reviewer [Step ${ri}] [Load ${w.__reviews_seats.map(fmtLoad).join(" ")}]`;
+            if (w.__review_error) {
+                reviewEl.innerText = w.__review_error;
+                clearWeightBars();
+                document.querySelectorAll('.tl.highlight-first-tile').forEach(el => {
+                    el.classList.remove('highlight-first-tile');
+                });
+                return;
+            }
             
             const key = `${round}-${ri}`;
-            const resp = window.__reviews_filled[key] || window.__reviews[key];
+            const resp = w.__reviews_filled[key] || w.__reviews[key];
             document.querySelectorAll('.tl.highlight-first-tile').forEach(el => {
                 el.classList.remove('highlight-first-tile');
             });
@@ -317,6 +370,9 @@
                         }
                     }
                 }
+            }
+            else {
+                reviewEl.innerText = '';
             }
         };
  
@@ -405,6 +461,7 @@
                 setTimeout(loadReviewData, 100);
                 return;
             }
+            setReviewError('');
             const gameId = tiEl.children[0].href.split("=").at(-1);
             const roundEl = document.getElementById("round");
             if (!roundEl) {
@@ -417,21 +474,22 @@
             let loadedCount = 0;
             
             for (let is = 0; is <= 3; is++) {
-                if (window.__reviews_seats[is]) continue;
-                window.__reviews_seats[is] = 1;
+                if (w.__reviews_seats[is]) continue;
+                w.__reviews_seats[is] = 1;
                 
                 fetch(`https://tc-api.pesiu.org/review/?id=${gameId}&seat=${is}`)
                     .then((r) => r.json())
                     .then((r) => {
                         if (r.code) {
-                            window.__reviews_seats[is] = 0;
+                            w.__reviews_seats[is] = 0;
                             console.error(`[Reviewer] Error fetching review data for seat ${is}:`, r.message);
+                            setReviewError(`评测接口错误：seat ${is} - ${r.message || '未知错误'}`);
                             return;
                         }
                         (Array.isArray(r) ? r : r.data).forEach((d) => {
-                            if (d.ri) window.__reviews[`${d.rr}-${d.ri}`] = d;
+                            if (d.ri) w.__reviews[`${d.rr}-${d.ri}`] = d;
                         });
-                        window.__reviews_seats[is] = 2;
+                        w.__reviews_seats[is] = 2;
                         console.log(`[Reviewer] Download finish for seat ${is}`);
                         loadedCount++;
                         if (loadedCount === 4) {
@@ -442,8 +500,9 @@
                         }
                     })
                     .catch((e) => {
-                        window.__reviews_seats[is] = 0;
+                        w.__reviews_seats[is] = 0;
                         console.error(`[Reviewer] Download failed for seat ${is}:`, e);
+                        setReviewError(`评测接口连接失败：seat ${is}`);
                     });
             }
             
@@ -451,16 +510,16 @@
         };
         
         const fillEmptyValues = () => {
-            for (const key in window.__reviews) {
-                window.__reviews_filled[key] = window.__reviews[key];
+            for (const key in w.__reviews) {
+                w.__reviews_filled[key] = w.__reviews[key];
             }
             const byRound = {};
-            for (const key in window.__reviews) {
+            for (const key in w.__reviews) {
                 const [rr, ri] = key.split('-').map(Number);
                 if (!byRound[rr]) {
                     byRound[rr] = {};
                 }
-                byRound[rr][ri] = window.__reviews[key];
+                byRound[rr][ri] = w.__reviews[key];
             }
             for (const round in byRound) {
                 const steps = byRound[round];
@@ -471,7 +530,7 @@
                     if (steps[ri]) {
                         lastValue = steps[ri];
                     } else if (lastValue) {
-                        window.__reviews_filled[`${round}-${ri}`] = lastValue;
+                        w.__reviews_filled[`${round}-${ri}`] = lastValue;
                         lastValue = null;
                     }
                 }
