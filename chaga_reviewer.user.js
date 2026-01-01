@@ -16,10 +16,6 @@
     'use strict';
  
     const w = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
-    if (typeof unsafeWindow === 'undefined') {
-        console.warn('[Reviewer] unsafeWindow unavailable; running in sandbox may fail to capture');
-        setReviewError('未能进入页面上下文，可能脚本被沙箱隔离');
-    }
     let tzInstance = null;
     let setReviewError = (msg) => {
         w.__review_error = msg;
@@ -29,6 +25,10 @@
         }
     };
     w.setReviewError = setReviewError;
+    if (typeof unsafeWindow === 'undefined') {
+        console.warn('[Reviewer] unsafeWindow unavailable; running in sandbox may fail to capture');
+        setReviewError('未能进入页面上下文，可能脚本被沙箱隔离');
+    }
     const originalDefineProperty = Object.defineProperty;
     const originalReflectDefineProperty = Reflect.defineProperty;
     
