@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         雀渣 CHAGA 牌谱分析
-// @version      1.2.1
+// @version      1.3
 // @description  适用于雀渣平台的 CHAGA 牌谱分析工具
 // @author       Choimoe
 // @match        https://tziakcha.net/record/*
@@ -405,9 +405,9 @@
                 return;
             }
             const ctrlRtDiv = document.createElement("div");
-            ctrlRtDiv.classList.add("ctrl-rt");
+            ctrlRtDiv.classList.add("ctrl-rt", "fs-sm");
             const checkboxDiv = document.createElement("div");
-            checkboxDiv.classList.add("fs-sm");
+            checkboxDiv.classList.add("ctrl-e", "no-sel");
             const checkboxLabel = document.createElement("label");
             const checkbox = document.createElement("input");
             checkbox.type = "checkbox";
@@ -425,7 +425,7 @@
             checkboxDiv.appendChild(checkboxLabel);
             ctrlRtDiv.appendChild(checkboxDiv);
             const weightCheckboxDiv = document.createElement("div");
-            weightCheckboxDiv.classList.add("fs-sm");
+            weightCheckboxDiv.classList.add("ctrl-e", "no-sel");
             const weightCheckboxLabel = document.createElement("label");
             const weightCheckbox = document.createElement("input");
             weightCheckbox.type = "checkbox";
