@@ -1,11 +1,12 @@
 // ==UserScript==
 // @name         雀渣 CHAGA 牌谱分析
-// @version      1.2
+// @version      1.2.1
 // @description  适用于雀渣平台的 CHAGA 牌谱分析工具
 // @author       Choimoe
 // @match        https://tziakcha.net/record/*
 // @icon         https://tziakcha.net/favicon.ico
-// @grant        none
+// @grant        unsafeWindow
+// @inject-into  page
 // @run-at       document-start
 // @license      MIT
 // @namespace https://greasyfork.org/users/1543716
@@ -15,6 +16,10 @@
     'use strict';
  
     const w = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
+    if (typeof unsafeWindow === 'undefined') {
+        console.warn('[Reviewer] unsafeWindow unavailable; running in sandbox may fail to capture');
+        setReviewError('未能进入页面上下文，可能脚本被沙箱隔离');
+    }
     let tzInstance = null;
     let setReviewError = (msg) => {
         w.__review_error = msg;
