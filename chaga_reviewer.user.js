@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         雀渣 CHAGA 牌谱分析
-// @version      1.4
+// @version      1.4.1
 // @description  适用于雀渣平台的 CHAGA 牌谱分析工具
 // @author       Choimoe
 // @match        https://tziakcha.net/record/*
@@ -24,6 +24,7 @@
             reviewEl.innerText = msg;
         }
     };
+    const clearReviewError = () => setReviewError('');
     w.setReviewError = setReviewError;
     if (typeof unsafeWindow === 'undefined') {
         console.warn('[Reviewer] unsafeWindow unavailable; running in sandbox may fail to capture');
@@ -36,6 +37,7 @@
         const WrappedTZ = function(...args) {
             const instance = new OriginalTZ(...args);
             tzInstance = instance;
+            clearReviewError();
             console.log('[Reviewer] Captured TZ instance:', instance);
             console.log('[Reviewer] Current step:', instance.stp);
             return instance;
@@ -90,6 +92,7 @@
                 const cy = sp.get('cy');
                 const tz = new w.TZ();
                 tzInstance = tz;
+                clearReviewError();
                 console.log('[Reviewer] Force-created TZ instance');
                 if (typeof tz.adapt === 'function') tz.adapt();
                 if (id && typeof tz.fetch === 'function') {
@@ -351,6 +354,11 @@
                 });
                 return;
             }
+
+            // 若已经有 tz 实例且之前留存的错误信息是补建提示，则清空
+            if (tzInstance && w.__review_error) {
+                clearReviewError();
+            }
             
             const key = `${round}-${ri}`;
             const resp = w.__reviews_filled[key] || w.__reviews[key];
@@ -601,6 +609,7 @@
                             const cy = sp.get('cy');
                             const tz = new w.TZ();
                             tzInstance = tz;
+                            clearReviewError();
                             console.log('[Reviewer] Late force-created TZ instance');
                             if (typeof tz.adapt === 'function') tz.adapt();
                             if (id && typeof tz.fetch === 'function') {
