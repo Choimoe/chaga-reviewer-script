@@ -2,18 +2,26 @@
 <img width="100px" src="https://github.githubassets.com/images/mona-loading-dark.gif" align="center" alt="Logo" />
 <h2 align="center">雀渣 CHAGA 牌谱分析</h2>
 <p align="center"><a href="https://github.com/Choimoe/chaga-reviewer-script"><img src="https://img.shields.io/badge/Github-181717?style=for-the-badge&logo=github&logoColor=white"></a><a href="https://greasyfork.org/zh-CN/scripts/560977"><img src="https://img.shields.io/badge/Greasy%20Fork-560977-grey.svg?colorA=900000&style=for-the-badge"></a> </p>
-<p align="center"><a href="https://github.com/Choimoe/chaga-reviewer-script"><img src="https://img.shields.io/github/license/Choimoe/chaga-reviewer-script?style=for-the-badge"></a> <img src="https://img.shields.io/github/stars/Choimoe/chaga-reviewer-script?style=for-the-badge"></a> <a href="https://choimoe.github.io/chaga-reviewer-script/"><img src="https://img.shields.io/github/actions/workflow/status/Choimoe/chaga-reviewer-script/deploy-pages.yml?label=deploy%20pages&style=for-the-badge"></a></p>
+<p align="center"><a href="https://github.com/Choimoe/chaga-reviewer-script"><img src="https://img.shields.io/github/license/Choimoe/chaga-reviewer-script?style=for-the-badge"> <img src="https://img.shields.io/github/stars/Choimoe/chaga-reviewer-script?style=for-the-badge"></a> <a href="https://choimoe.github.io/chaga-reviewer-script/"><img src="https://img.shields.io/github/actions/workflow/status/Choimoe/chaga-reviewer-script/deploy-pages.yml?label=deploy%20pages&style=for-the-badge"></a></p>
 </p>
 
 适用于雀渣平台的 CHAGA 牌谱分析工具，在牌谱回放时实时显示 CHAGA 推荐的候选打法和权重评分。
 
-主要代码来自 [tziakcha/reviewer-homepage](https://github.com/tziakcha/reviewer-homepage)，本项目只是写了一点简陋的显示和简单的优化，放到了油猴脚本。
+这里特别鸣谢 CHAGA 提供的看谱 API，主要代码来自 [tziakcha/reviewer-homepage](https://github.com/tziakcha/reviewer-homepage)，本项目只是写了一点简陋的显示和简单的优化，放到了油猴脚本。
 
 ![demo](doc/img/chaga_view.jpg)
 
 ## 安装
 
-需要先安装用户脚本管理器（[Tampermonkey](https://www.tampermonkey.net/) 或 Violentmonkey），然后访问 <a href="https://greasyfork.org/zh-CN/scripts/560977"><img src="https://img.shields.io/badge/Greasy%20Fork-560977-grey.svg?colorA=900000&style=for-the-badge"></a> 安装脚本（或直接从本仓库下载/复制 [脚本代码](https://github.com/Choimoe/chaga-reviewer-script/blob/main/chaga_reviewer.user.js)）。脚本会在雀渣牌谱页面（`https://tziakcha.net/record/*`）自动启用。
+需要先安装用户脚本管理器（[Tampermonkey](https://www.tampermonkey.net/) 或 Violentmonkey）。你可以在浏览器插件商店下载：
+
+<a href="https://microsoftedge.microsoft.com/addons/detail/%E7%AF%A1%E6%94%B9%E7%8C%B4/iikmkjmpaadaobahmlepeloendndfphd?hl=zh-CN"><img src="https://img.shields.io/badge/Microsoft-Edge%20扩展-007EC6?style=for-the-badge&logo=data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBzdGFuZGFsb25lPSJubyI/PjwhRE9DVFlQRSBzdmcgUFVCTElDICItLy9XM0MvL0RURCBTVkcgMS4xLy9FTiIgImh0dHA6Ly93d3cudzMub3JnL0dyYXBoaWNzL1NWRy8xLjEvRFREL3N2ZzExLmR0ZCI+PHN2ZyB0PSIxNzI4MTA5MDY3MTMwIiBjbGFzcz0iaWNvbiIgdmlld0JveD0iMCAwIDEwMjQgMTAyNCIgdmVyc2lvbj0iMS4xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHAtaWQ9IjQyNTAiIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB3aWR0aD0iMjQiIGhlaWdodD0iMjQiPjxwYXRoIGQ9Ik0wIDBoNDg2LjU5MnY0ODYuNTkySDB6IiBmaWxsPSIjRjI1MDIyIiBwLWlkPSI0MjUxIj48L3BhdGg+PHBhdGggZD0iTTUzNy40MDggMEgxMDI0djQ4Ni41OTJINTM3LjQwOHoiIGZpbGw9IiM3RkJBMDAiIHAtaWQ9IjQyNTIiPjwvcGF0aD48cGF0aCBkPSJNMCA1MzcuNDA4aDQ4Ni41OTJWMTAyNEgweiIgZmlsbD0iIzAwQTRFRiIgcC1pZD0iNDI1MyI+PC9wYXRoPjxwYXRoIGQ9Ik01MzcuNDA4IDUzNy40MDhIMTAyNFYxMDI0SDUzNy40MDh6IiBmaWxsPSIjRkZCOTAwIiBwLWlkPSI0MjU0Ij48L3BhdGg+PC9zdmc+"></a>
+
+<a href="https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo?hl=zh-CN&pli=1"><img src="https://img.shields.io/badge/Chrome-Chrome%20扩展-4285F4?style=for-the-badge&logo=GoogleChrome&logoColor=white"></a>
+
+---
+
+接着访问 <a href="https://greasyfork.org/zh-CN/scripts/560977"><img src="https://img.shields.io/badge/Greasy%20Fork-560977-grey.svg?colorA=900000&style=for-the-badge"></a> 安装脚本（或直接从本仓库下载/复制 <a href="https://github.com/Choimoe/chaga-reviewer-script/raw/refs/heads/main/chaga_reviewer.user.js"><img src="https://img.shields.io/badge/Github-181717?style=for-the-badge&logo=github&logoColor=white"></a>）。脚本会在雀渣牌谱页面（`https://tziakcha.net/record/*`）自动启用。
 
 ## 功能
 
@@ -26,6 +34,8 @@
 **候选打法列表**：按权重降序显示所有候选操作及其评分。
 
 **加载状态指示**：实时显示当前步数和四个座位的数据加载状态（`✓` 已加载，`·` 加载中，`✗` 加载失败）。
+
+![controller](doc/img/ctrl.jpg)
 
 ## 实现
 
