@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         雀渣 CHAGA 牌谱分析
-// @version      1.0
+// @version      1.1
 // @description  适用于雀渣平台的 CHAGA 牌谱分析工具
 // @author       Choimoe
 // @match        https://tziakcha.net/record/*
@@ -17,44 +17,80 @@
     let tzInstance = null;
     const originalDefineProperty = Object.defineProperty;
     
-    const interceptTZ = () => {
-        const descriptor = {
-            configurable: true,
-            enumerable: true,
-            get: function() {
-                return this._TZ;
-            },
-            set: function(value) {
-                if (typeof value === 'function' && !this._TZ_intercepted) {
-                    console.log('[Reviewer] Intercepting TZ constructor');
-                    this._TZ_intercepted = true;
-                    const OriginalTZ = value;
-                    this._TZ = function(...args) {
-                        const instance = new OriginalTZ(...args);
-                        tzInstance = instance;
-                        console.log('[Reviewer] Captured TZ instance:', instance);
-                        console.log('[Reviewer] Current step:', instance.stp);
-                        return instance;
-                    };
-                    this._TZ.prototype = OriginalTZ.prototype;
-                    Object.setPrototypeOf(this._TZ, OriginalTZ);
-                    for (let key in OriginalTZ) {
-                        if (OriginalTZ.hasOwnProperty(key)) {
-                            this._TZ[key] = OriginalTZ[key];
-                        }
-                    }
-                } else {
-                    this._TZ = value;
-                }
-            }
+    const wrapTZ = (OriginalTZ) => {
+        const WrappedTZ = function(...args) {
+            const instance = new OriginalTZ(...args);
+            tzInstance = instance;
+            console.log('[Reviewer] Captured TZ instance:', instance);
+            console.log('[Reviewer] Current step:', instance.stp);
+            return instance;
         };
-        
-        try {
-            originalDefineProperty(window, 'TZ', descriptor);
-            console.log('[Reviewer] TZ interceptor installed');
-        } catch (e) {
-            console.error('[Reviewer] Failed to install TZ interceptor:', e);
+        WrappedTZ.prototype = OriginalTZ.prototype;
+        Object.setPrototypeOf(WrappedTZ, OriginalTZ);
+        for (let key in OriginalTZ) {
+            if (OriginalTZ.hasOwnProperty(key)) {
+                WrappedTZ[key] = OriginalTZ[key];
+            }
         }
+        return WrappedTZ;
+    };
+
+    const interceptTZ = () => {
+        const existing = Object.getOwnPropertyDescriptor(window, 'TZ');
+
+        if (!existing || existing.configurable) {
+            const descriptor = {
+                configurable: true,
+                enumerable: true,
+                get: function() {
+                    return this._TZ;
+                },
+                set: function(value) {
+                    if (typeof value === 'function' && !this._TZ_intercepted) {
+                        console.log('[Reviewer] Intercepting TZ constructor');
+                        this._TZ_intercepted = true;
+                        this._TZ = wrapTZ(value);
+                    } else {
+                        this._TZ = value;
+                    }
+                }
+            };
+            try {
+                originalDefineProperty(window, 'TZ', descriptor);
+                console.log('[Reviewer] TZ interceptor installed (configurable path)');
+                return;
+            } catch (e) {
+                console.error('[Reviewer] Failed to install TZ interceptor via defineProperty:', e);
+            }
+        }
+
+        if (existing && existing.writable === false) {
+            console.warn('[Reviewer] TZ is non-configurable and non-writable; cannot intercept');
+            return;
+        }
+
+        const tryPatch = () => {
+            if (typeof window.TZ === 'function' && !window._TZ_intercepted_direct) {
+                window._TZ_intercepted_direct = true;
+                window.TZ = wrapTZ(window.TZ);
+                console.log('[Reviewer] TZ interceptor installed (fallback patch)');
+                return true;
+            }
+            return false;
+        };
+
+        if (tryPatch()) return;
+
+        let attempts = 0;
+        const timer = setInterval(() => {
+            attempts += 1;
+            if (tryPatch() || attempts > 200) {
+                if (attempts > 200) {
+                    console.warn('[Reviewer] Gave up waiting for TZ to patch');
+                }
+                clearInterval(timer);
+            }
+        }, 50);
     };
     
     interceptTZ();
