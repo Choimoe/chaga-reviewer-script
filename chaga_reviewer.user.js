@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         雀渣 CHAGA 牌谱分析
-// @version      1.3
+// @version      1.4
 // @description  适用于雀渣平台的 CHAGA 牌谱分析工具
 // @author       Choimoe
 // @match        https://tziakcha.net/record/*
@@ -81,6 +81,27 @@
         installDefinePropertyHook();
         const existing = Object.getOwnPropertyDescriptor(w, 'TZ');
 
+        const forceCreateTZ = () => {
+            try {
+                if (tzInstance || typeof w.TZ !== 'function') return false;
+                const sp = new URLSearchParams(w.location.search);
+                const id = sp.get('id');
+                const v = sp.get('v');
+                const cy = sp.get('cy');
+                const tz = new w.TZ();
+                tzInstance = tz;
+                console.log('[Reviewer] Force-created TZ instance');
+                if (typeof tz.adapt === 'function') tz.adapt();
+                if (id && typeof tz.fetch === 'function') {
+                    tz.fetch(id, 0, v, cy);
+                }
+                return true;
+            } catch (e) {
+                console.error('[Reviewer] Force-create TZ failed:', e);
+                return false;
+            }
+        };
+
         if (!existing || existing.configurable) {
             const descriptor = {
                 configurable: true,
@@ -134,8 +155,9 @@
                 if (attempts > 200) {
                     console.warn('[Reviewer] Gave up waiting for TZ to patch');
                     if (w.setReviewError) {
-                        w.setReviewError('未捕获牌局核心对象，可能未在页面上下文执行');
+                        w.setReviewError('未捕获牌局核心对象，尝试补建实例');
                     }
+                    forceCreateTZ();
                 }
                 clearInterval(timer);
             }
@@ -569,7 +591,31 @@
 
         setTimeout(() => {
             if (!tzInstance) {
-                setReviewError('未捕获牌局实例，可能浏览器或脚本管理器限制了注入');
+                setReviewError('未捕获牌局实例，尝试补建实例');
+                if (!tzInstance) {
+                    const ok = (typeof w.TZ === 'function') && (() => {
+                        try {
+                            const sp = new URLSearchParams(w.location.search);
+                            const id = sp.get('id');
+                            const v = sp.get('v');
+                            const cy = sp.get('cy');
+                            const tz = new w.TZ();
+                            tzInstance = tz;
+                            console.log('[Reviewer] Late force-created TZ instance');
+                            if (typeof tz.adapt === 'function') tz.adapt();
+                            if (id && typeof tz.fetch === 'function') {
+                                tz.fetch(id, 0, v, cy);
+                            }
+                            return true;
+                        } catch (e) {
+                            console.error('[Reviewer] Late force-create TZ failed:', e);
+                            return false;
+                        }
+                    })();
+                    if (!ok) {
+                        setReviewError('未捕获牌局实例，可能浏览器或脚本管理器限制了注入');
+                    }
+                }
             }
         }, 6000);
     };
