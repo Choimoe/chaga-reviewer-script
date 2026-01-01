@@ -128,6 +128,9 @@
             if (tryPatch() || attempts > 200) {
                 if (attempts > 200) {
                     console.warn('[Reviewer] Gave up waiting for TZ to patch');
+                    if (w.setReviewError) {
+                        w.setReviewError('未捕获牌局核心对象，可能未在页面上下文执行');
+                    }
                 }
                 clearInterval(timer);
             }
@@ -298,6 +301,8 @@
             });
         };
  
+        let lastStp = null;
+
         const show_cands = () => {
             const roundEl = document.getElementById("round");
             const reviewLogEl = document.getElementById("review-log");
@@ -308,6 +313,7 @@
             const roundStr = roundEl.innerHTML;
             const round = parseRound(roundStr);
             const ri = getPlayerStep();
+            lastStp = tzInstance?.stp ?? lastStp;
             
             reviewLogEl.innerHTML = `CHAGA Reviewer [Step ${ri}] [Load ${w.__reviews_seats.map(fmtLoad).join(" ")}]`;
             if (w.__review_error) {
@@ -375,6 +381,17 @@
                 reviewEl.innerText = '';
             }
         };
+
+        const startStepWatcher = () => {
+            const poll = () => {
+                const stp = tzInstance?.stp;
+                if (typeof stp === 'number' && stp !== lastStp) {
+                    lastStp = stp;
+                    show_cands();
+                }
+            };
+            setInterval(poll, 200);
+        };
  
         const createUI = () => {
             const ctrl = document.getElementById("ctrl");
@@ -439,7 +456,8 @@
                 const buttons = ['nextstp', 'prevstp', 'ffstp', 'frstp', 'next', 'prev'];
                 buttons.forEach(id => {
                     const btn = document.getElementById(id);
-                    if (btn && btn.onclick) {
+                    if (!btn) return;
+                    if (btn.onclick) {
                         const original = btn.onclick;
                         btn.onclick = function(e) {
                             const result = original.call(this, e);
@@ -447,12 +465,14 @@
                             return result;
                         };
                     }
+                    btn.addEventListener('click', () => setTimeout(show_cands, 50), { passive: true });
                 });
                 
                 console.log('[Reviewer] Button hooks installed');
             };
             
             setTimeout(hookButtons, 500);
+            startStepWatcher();
         };
  
         const loadReviewData = () => {
@@ -541,6 +561,12 @@
  
         createUI();
         loadReviewData();
+
+        setTimeout(() => {
+            if (!tzInstance) {
+                setReviewError('未捕获牌局实例，可能浏览器或脚本管理器限制了注入');
+            }
+        }, 6000);
     };
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
