@@ -1,5 +1,5 @@
 <p align="center">
-<img width="100px" src="https://github.githubassets.com/images/mona-loading-dark.gif" align="center" alt="Logo" />
+<img width="128px" src="doc/img/icon.png" align="center" alt="Logo" />
 <h2 align="center">雀渣 CHAGA 牌谱分析</h2>
 <p align="center"><a href="https://github.com/Choimoe/chaga-reviewer-script"><img src="https://img.shields.io/badge/Github-181717?style=for-the-badge&logo=github&logoColor=white"></a><a href="https://greasyfork.org/zh-CN/scripts/560977"><img src="https://img.shields.io/badge/Greasy%20Fork-560977-grey.svg?colorA=900000&style=for-the-badge"></a> </p>
 <p align="center"><a href="https://github.com/Choimoe/chaga-reviewer-script"><img src="https://img.shields.io/github/license/Choimoe/chaga-reviewer-script?style=for-the-badge"> <img src="https://img.shields.io/github/stars/Choimoe/chaga-reviewer-script?style=for-the-badge"></a> <a href="https://choimoe.github.io/chaga-reviewer-script/"><img src="https://img.shields.io/github/actions/workflow/status/Choimoe/chaga-reviewer-script/deploy-pages.yml?label=deploy%20pages&style=for-the-badge"></a></p>

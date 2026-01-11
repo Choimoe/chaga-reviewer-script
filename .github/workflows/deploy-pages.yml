@@ -43,6 +43,7 @@ jobs:
               <meta charset="UTF-8">
               <meta name="viewport" content="width=device-width, initial-scale=1.0">
               <title>雀渣 CHAGA 牌谱分析</title>
+              <link rel="icon" type="image/png" href="doc/img/icon.png">
               <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.0/github-markdown.min.css">
               <style>
                   body {
