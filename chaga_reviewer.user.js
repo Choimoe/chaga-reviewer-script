@@ -626,7 +626,7 @@
                     }
                 }
             }
-        }, 6000);
+        }, 1000);
     };
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
