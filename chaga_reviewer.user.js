@@ -197,6 +197,25 @@
                 z-index: 10;
                 pointer-events: none;
             }
+            .review-container {
+                position: relative;
+                min-height: 128px;
+            }
+            .review-bg-image {
+                position: absolute;
+                top: 0;
+                right: 0;
+                width: 128px;
+                height: 128px;
+                opacity: 0.50;
+                z-index: 0;
+                pointer-events: none;
+            }
+            #review {
+                position: relative;
+                z-index: 1;
+                padding-right: 10px;
+            }
         `;
         document.head.appendChild(style);
         
@@ -539,7 +558,18 @@
             logDiv.appendChild(logSpan);
             ctrlRtDiv.appendChild(logDiv);
             const reviewDiv = document.createElement("div");
-            reviewDiv.classList.add("fs-sm");
+            reviewDiv.classList.add("fs-sm", "review-container");
+            
+            const bgImage = document.createElement("img");
+            bgImage.className = "review-bg-image";
+            bgImage.src = "https://cdn.jsdelivr.net/gh/Choimoe/chaga-reviewer-script/doc/img/icon.png";
+            bgImage.onerror = function() {
+                console.log('[Reviewer] Failed to load image from jsdelivr, fallback to loli.net');
+                this.onerror = null;
+                this.src = "https://s2.loli.net/2026/01/12/JV3yI89rnRzO1E4.png";
+            };
+            reviewDiv.appendChild(bgImage);
+            
             const reviewSpan = document.createElement("span");
             reviewSpan.id = "review";
             reviewDiv.appendChild(reviewSpan);
