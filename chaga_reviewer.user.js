@@ -412,15 +412,15 @@
                         `${act2str(act)}&nbsp;&nbsp;-&nbsp;&nbsp;${weight.toFixed(2)}`
                     )
                     .join("<br>");
-                const allPlays = resp.extra.candidates.every(([_, act]) => 
+                const hasPlay = resp.extra.candidates.some(([_, act]) => 
                     act.trim().startsWith("Play ")
                 );
-                if (allPlays && tzInstance) {
+                if (hasPlay && tzInstance) {
                     const currentStat = tzInstance.stat?.[tzInstance.stp];
                     const playerIndex = currentStat?.k ?? 0;
                     showWeightVisualization(resp.extra.candidates, playerIndex);
                 }
-                if (allPlays && highlightFirstTile && tzInstance) {
+                if (hasPlay && highlightFirstTile && tzInstance) {
                     const firstCand = resp.extra.candidates[0];
                     if (firstCand && firstCand[1]) {
                         const act = firstCand[1].trim();
