@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         雀渣 CHAGA 牌谱分析
-// @version      1.4.1
+// @version      1.5.0
 // @description  适用于雀渣平台的 CHAGA 牌谱分析工具
 // @author       Choimoe
 // @match        https://tziakcha.net/record/*
@@ -274,6 +274,7 @@
         w.__review_error = '';
         let highlightFirstTile = true;
         let showWeightBars = true;
+        let hideUserInfo = false;
         
         const getPlayerStep = () => {
             if (tzInstance && typeof tzInstance.stp === 'number') {
@@ -287,6 +288,46 @@
             const expWeights = weights.map(w => Math.exp(w - maxWeight));
             const sumExp = expWeights.reduce((a, b) => a + b, 0);
             return expWeights.map(w => w / sumExp);
+        };
+
+        const toggleUserInfo = (hide) => {
+            const nameElements = document.querySelectorAll('.name');
+            const eloElements = document.querySelectorAll('.elo');
+            
+            if (hide) {
+                nameElements.forEach((el, index) => {
+                    const currentText = el.textContent.trim();
+                    if (!currentText.match(/^用户\d+$/)) {
+                        el.dataset.originalName = currentText;
+                    }
+                    el.textContent = `用户${index + 1}`;
+                });
+                
+                eloElements.forEach((el) => {
+                    const eloValSpan = el.querySelector('.elo-val');
+                    if (eloValSpan) {
+                        el.dataset.originalElo = eloValSpan.textContent;
+                    }
+                    el.style.display = 'none';
+                });
+            } else {
+                nameElements.forEach((el) => {
+                    const currentText = el.textContent.trim();
+                    if (currentText.match(/^用户\d+$/) && el.dataset.originalName) {
+                        el.textContent = el.dataset.originalName;
+                    }
+                    delete el.dataset.originalName;
+                });
+                
+                eloElements.forEach((el) => {
+                    el.style.display = '';
+                    const eloValSpan = el.querySelector('.elo-val');
+                    if (eloValSpan && el.dataset.originalElo) {
+                        eloValSpan.textContent = el.dataset.originalElo;
+                    }
+                    delete el.dataset.originalElo;
+                });
+            }
         };
  
         const clearWeightBars = () => {
@@ -355,7 +396,6 @@
                 return;
             }
 
-            // 若已经有 tz 实例且之前留存的错误信息是补建提示，则清空
             if (tzInstance && w.__review_error) {
                 clearReviewError();
             }
@@ -472,6 +512,26 @@
             weightCheckboxLabel.appendChild(weightLabelText);
             weightCheckboxDiv.appendChild(weightCheckboxLabel);
             ctrlRtDiv.appendChild(weightCheckboxDiv);
+            
+            const hideInfoCheckboxDiv = document.createElement("div");
+            hideInfoCheckboxDiv.classList.add("ctrl-e", "no-sel");
+            const hideInfoCheckboxLabel = document.createElement("label");
+            const hideInfoCheckbox = document.createElement("input");
+            hideInfoCheckbox.type = "checkbox";
+            hideInfoCheckbox.id = "cb-hide-user-info";
+            hideInfoCheckbox.checked = hideUserInfo;
+            hideInfoCheckbox.onchange = function(e) {
+                hideUserInfo = e.target.checked;
+                toggleUserInfo(hideUserInfo);
+            };
+            const hideInfoLabelText = document.createElement("span");
+            hideInfoLabelText.classList.add("ml-02em");
+            hideInfoLabelText.innerText = "隐藏用户信息";
+            hideInfoCheckboxLabel.appendChild(hideInfoCheckbox);
+            hideInfoCheckboxLabel.appendChild(hideInfoLabelText);
+            hideInfoCheckboxDiv.appendChild(hideInfoCheckboxLabel);
+            ctrlRtDiv.appendChild(hideInfoCheckboxDiv);
+            
             const logDiv = document.createElement("div");
             logDiv.classList.add("fs-sm");
             const logSpan = document.createElement("span");
@@ -487,6 +547,31 @@
             ctrl.appendChild(ctrlRtDiv);
             
             console.log('[Reviewer] UI elements created');
+            
+            const hookViewChange = () => {
+                const viewSelect = document.getElementById('view');
+                if (viewSelect) {
+                    const originalOnChange = viewSelect.onchange;
+                    viewSelect.onchange = function(e) {
+                        if (hideUserInfo) {
+                            const hideInfoCheckbox = document.getElementById('cb-hide-user-info');
+                            hideInfoCheckbox.checked = false;
+                            hideUserInfo = false;
+                            toggleUserInfo(false);
+                            
+                            const nameElements = document.querySelectorAll('.name');
+                            nameElements.forEach(el => {
+                                delete el.dataset.originalName;
+                            });
+                        }
+                        if (originalOnChange) {
+                            return originalOnChange.call(this, e);
+                        }
+                    };
+                    console.log('[Reviewer] View change hook installed');
+                }
+            };
+            
             const hookButtons = () => {
                 const buttons = ['nextstp', 'prevstp', 'ffstp', 'frstp', 'next', 'prev'];
                 buttons.forEach(id => {
@@ -495,17 +580,42 @@
                     if (btn.onclick) {
                         const original = btn.onclick;
                         btn.onclick = function(e) {
+                            if ((id === 'next' || id === 'prev') && hideUserInfo) {
+                                const hideInfoCheckbox = document.getElementById('cb-hide-user-info');
+                                hideInfoCheckbox.checked = false;
+                                hideUserInfo = false;
+                                toggleUserInfo(false);
+                                
+                                const nameElements = document.querySelectorAll('.name');
+                                nameElements.forEach(el => {
+                                    delete el.dataset.originalName;
+                                });
+                            }
                             const result = original.call(this, e);
                             setTimeout(show_cands, 50);
                             return result;
                         };
                     }
-                    btn.addEventListener('click', () => setTimeout(show_cands, 50), { passive: true });
+                    btn.addEventListener('click', () => {
+                        if ((id === 'next' || id === 'prev') && hideUserInfo) {
+                            const hideInfoCheckbox = document.getElementById('cb-hide-user-info');
+                            hideInfoCheckbox.checked = false;
+                            hideUserInfo = false;
+                            toggleUserInfo(false);
+                            
+                            const nameElements = document.querySelectorAll('.name');
+                            nameElements.forEach(el => {
+                                delete el.dataset.originalName;
+                            });
+                        }
+                        setTimeout(show_cands, 50);
+                    }, { passive: true });
                 });
                 
                 console.log('[Reviewer] Button hooks installed');
             };
             
+            setTimeout(hookViewChange, 500);
             setTimeout(hookButtons, 500);
             startStepWatcher();
         };
