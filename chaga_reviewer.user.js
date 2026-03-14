@@ -7,7 +7,7 @@
 // @match        https://tziakcha.net/record/*
 // @match        https://tziakcha.net/user/tech/*
 // @match        https://tziakcha.net/history/*
-// @icon         https://tziakcha.net/favicon.ico
+// @icon         https://cdn.jsdelivr.net/gh/Choimoe/chaga-reviewer-script/doc/img/icon.png
 // @grant        unsafeWindow
 // @inject-into  page
 // @run-at       document-start
