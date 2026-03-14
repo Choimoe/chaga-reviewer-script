@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         雀渣 CHAGA 牌谱分析
-// @version      1.6.0
+// @version      1.6.1
 // @description  适用于雀渣平台的 CHAGA 牌谱分析工具
 // @author       Choimoe
 // @match        https://tziakcha.net/record/*
 // @match        https://tziakcha.net/user/tech/*
+// @match        https://tziakcha.net/history/*
 // @icon         https://tziakcha.net/favicon.ico
 // @grant        unsafeWindow
 // @inject-into  page
@@ -15,10 +16,20 @@
  
 (function() {
     'use strict';
+
+    const logCurrentCookie = () => {
+        try {
+            const cookieText = document.cookie || '(empty)';
+            console.log('[Reviewer] Current page cookie:', cookieText);
+        } catch (e) {
+            console.error('[Reviewer] Failed to read cookie:', e);
+        }
+    };
  
     const w = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
     const isRecordPage = /^\/record\//.test(w.location.pathname);
     const isTechPage = /^\/user\/tech\/?/.test(w.location.pathname);
+    const isHistoryPage = /^\/history\/?/.test(w.location.pathname);
     let tzInstance = null;
     let setReviewError = (msg) => {
         w.__review_error = msg;
@@ -500,6 +511,172 @@
             .catch((e) => {
                 console.error('[Reviewer] Failed to load zumgze data:', e);
             });
+    };
+
+    const initHistoryVisit = () => {
+        const searchLink = document.querySelector('a[href="/search/"][target="_blank"]');
+        const refreshLink = document.getElementById('rfrsh');
+        const tbody = document.querySelector('table tbody');
+        if (!searchLink || !refreshLink || !tbody) {
+            setTimeout(initHistoryVisit, 100);
+            return;
+        }
+        if (document.getElementById('reviewer-history-visit-btn')) {
+            return;
+        }
+
+        const escapeHtml = (text) => String(text)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+
+        const extractNameFromCell = (cell) => {
+            const raw = (cell.textContent || '').replace(/\s+/g, ' ').trim();
+            if (!raw) return '';
+            return raw.replace(/^★\s*/, '').trim();
+        };
+
+        const getNameCells = () => {
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            const cells = [];
+            rows.forEach((row) => {
+                const tds = row.querySelectorAll('td');
+                [1, 3, 5, 7].forEach((idx) => {
+                    if (tds[idx]) {
+                        cells.push(tds[idx]);
+                    }
+                });
+            });
+            return cells;
+        };
+
+        const renderLinkedCell = (cell, userName, userId) => {
+            if (!userName || !userId) return;
+            const raw = (cell.textContent || '').replace(/\s+/g, ' ').trim();
+            const hasStar = /^★\s*/.test(raw);
+            const href = `/user/tech/?id=${encodeURIComponent(userId)}`;
+            const currentA = cell.querySelector('a');
+            if (currentA && currentA.getAttribute('href') === href) {
+                return;
+            }
+            cell.innerHTML = `${hasStar ? '★ ' : ''}<a href="${href}" target="_blank">${escapeHtml(userName)}</a>`;
+        };
+
+        const renderPlainCell = (cell) => {
+            const raw = (cell.textContent || '').replace(/\s+/g, ' ').trim();
+            if (!raw) return;
+            const hasStar = /^★\s*/.test(raw);
+            const userName = raw.replace(/^★\s*/, '').trim();
+            cell.textContent = `${hasStar ? '★ ' : ''}${userName}`;
+        };
+
+        const nameToId = new Map();
+        let enabled = false;
+        let loading = false;
+
+        const queryUserIdByName = async (name) => {
+            const resp = await fetch(`/_qry/match/?kw=${encodeURIComponent(name)}`, {
+                method: 'POST',
+                credentials: 'include',
+            });
+            if (!resp.ok) {
+                throw new Error(`HTTP ${resp.status}`);
+            }
+            const json = await resp.json();
+            const items = Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : []);
+            const exact = items.find((item) => item && item.n === name && item.i);
+            return exact ? exact.i : null;
+        };
+
+        const enrichCurrentRows = async () => {
+            if (loading) return;
+            loading = true;
+            try {
+                const nameCells = getNameCells();
+                const names = Array.from(new Set(nameCells
+                    .map(extractNameFromCell)
+                    .filter(Boolean)));
+
+                const pending = names.filter((name) => !nameToId.has(name));
+                if (pending.length) {
+                    const results = await Promise.all(pending.map(async (name) => {
+                        try {
+                            const userId = await queryUserIdByName(name);
+                            return [name, userId];
+                        } catch (e) {
+                            console.warn('[Reviewer] Failed to query user id:', name, e);
+                            return [name, null];
+                        }
+                    }));
+                    results.forEach(([name, userId]) => {
+                        nameToId.set(name, userId);
+                    });
+                }
+
+                let linkedCount = 0;
+                nameCells.forEach((cell) => {
+                    const name = extractNameFromCell(cell);
+                    const userId = nameToId.get(name);
+                    if (name && userId) {
+                        renderLinkedCell(cell, name, userId);
+                        linkedCount += 1;
+                    }
+                });
+                console.log(`[Reviewer] 家访完成，已添加 ${linkedCount} 个用户链接`);
+                return linkedCount;
+            } finally {
+                loading = false;
+            }
+        };
+
+        const visitBtn = document.createElement('a');
+        visitBtn.id = 'reviewer-history-visit-btn';
+        visitBtn.href = 'javascript:void(0)';
+        visitBtn.className = 'm-1 btn btn-outline-primary btn-sm';
+        visitBtn.textContent = '家访（需要会员）';
+        visitBtn.addEventListener('click', async () => {
+            if (loading) return;
+
+            if (enabled) {
+                enabled = false;
+                getNameCells().forEach((cell) => {
+                    renderPlainCell(cell);
+                });
+                visitBtn.textContent = '家访（需要会员）';
+                console.log('[Reviewer] 已取消家访显示');
+                return;
+            }
+
+            const oldText = visitBtn.textContent;
+            visitBtn.textContent = '家访中...';
+            try {
+                enabled = true;
+                const linkedCount = await enrichCurrentRows();
+                if (!linkedCount) {
+                    console.warn('[Reviewer] 家访未找到可匹配的完整用户名');
+                }
+                visitBtn.textContent = '取消家访';
+            } catch (e) {
+                console.error('[Reviewer] 家访失败：', e);
+            } finally {
+                if (!enabled) {
+                    visitBtn.textContent = '家访（需要会员）';
+                } else if (visitBtn.textContent === '家访中...') {
+                    visitBtn.textContent = oldText;
+                }
+            }
+        });
+
+        refreshLink.parentNode.insertBefore(visitBtn, refreshLink);
+
+        const observer = new MutationObserver(() => {
+            if (enabled) {
+                enrichCurrentRows();
+            }
+        });
+        observer.observe(tbody, { childList: true, subtree: true });
     };
     
     const initReviewer = () => {
@@ -1102,6 +1279,7 @@
         }, 1000);
     };
     if (isRecordPage) {
+        logCurrentCookie();
         interceptTZ();
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => {
@@ -1111,12 +1289,22 @@
             setTimeout(initReviewer, 500);
         }
     } else if (isTechPage) {
+        logCurrentCookie();
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => {
                 setTimeout(initTechZumgze, 300);
             });
         } else {
             setTimeout(initTechZumgze, 300);
+        }
+    } else if (isHistoryPage) {
+        logCurrentCookie();
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                setTimeout(initHistoryVisit, 300);
+            });
+        } else {
+            setTimeout(initHistoryVisit, 300);
         }
     }
 })();
