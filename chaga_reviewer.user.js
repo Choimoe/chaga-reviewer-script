@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         雀渣 CHAGA 牌谱分析
-// @version      1.6.4
+// @version      1.6.5
 // @description  适用于雀渣平台的 CHAGA 牌谱分析工具
 // @author       Choimoe
 // @match        https://tziakcha.net/*
@@ -380,6 +380,11 @@
                     font-size: 12px;
                     color: #6c757d;
                 }
+                #reviewer-zumgze-wrap .zumgze-score-ci {
+                    margin-top: 0.1em;
+                    font-size: 12px;
+                    color: #6c757d;
+                }
                 #reviewer-zumgze-wrap .zumgze-col-name {
                     width: 7em;
                 }
@@ -458,6 +463,8 @@
             const CHAGA_SIMILARITY_D = 21;
             const CHAGA_SIMILARITY_C = -0.23;
             const CHAGA_SIMILARITY_A = 4;
+            const CHAGA_CI_Z95 = 1.96;
+            const CHAGA_REF_SAMPLE_SIZE = 3416686;
             latestFanData = fan || {};
             const currentRef = REF_MAPS[currentRefKey]?.values || REF_MAPS.chaga.values;
             const total = (fan.c0 || 0) + (fan.d0 || 0);
@@ -472,8 +479,42 @@
             });
             const fanCount = rows.length;
             const chagaH = (value) => 1 / (1 + Math.exp(-CHAGA_SIMILARITY_C * value));
-            const chagaSimilarityRaw = Math.sqrt(chagaH(zumgze - CHAGA_SIMILARITY_D)) * 100 + CHAGA_SIMILARITY_A;
-            const chagaSimilarity = Math.max(0, Math.min(100, chagaSimilarityRaw));
+            const chagaScoreFromDistance = (distance) => {
+                const scoreRaw = Math.sqrt(chagaH(distance - CHAGA_SIMILARITY_D)) * 100 + CHAGA_SIMILARITY_A;
+                return Math.max(0, Math.min(100, scoreRaw));
+            };
+            const chagaSimilarity = chagaScoreFromDistance(zumgze);
+            const computeZumgzeCI = () => {
+                const k = total;
+                const m = CHAGA_REF_SAMPLE_SIZE;
+                if (!(k > 0 && m > 0)) {
+                    return null;
+                }
+                let dProb = 0;
+                let varD = 0;
+                for (const row of rows) {
+                    const a = row.playerPct / 100;
+                    const p = row.refPct / 100;
+                    dProb += Math.abs(a - p);
+                    varD += (a * (1 - a)) / m + (p * (1 - p)) / k;
+                }
+                const seProb = Math.sqrt(Math.max(0, varD));
+                const ciLowerProb = Math.max(0, dProb - CHAGA_CI_Z95 * seProb);
+                const ciUpperProb = dProb + CHAGA_CI_Z95 * seProb;
+                return {
+                    lowerDistance: ciLowerProb * 100,
+                    upperDistance: ciUpperProb * 100,
+                };
+            };
+            const chagaCI = computeZumgzeCI();
+            let chagaScoreLower = null;
+            let chagaScoreUpper = null;
+            if (chagaCI) {
+                const scoreA = chagaScoreFromDistance(chagaCI.lowerDistance);
+                const scoreB = chagaScoreFromDistance(chagaCI.upperDistance);
+                chagaScoreLower = Math.min(scoreA, scoreB);
+                chagaScoreUpper = Math.max(scoreA, scoreB);
+            }
 
             rows.sort((a, b) => {
                 const aPositive = a.diff >= 0;
@@ -535,6 +576,7 @@
                     <div class="zumgze-summary text-dark"><span id="reviewer-zumgze-summary-label">CHAGA均平均差</span>：<span id="reviewer-zumgze-value">0.000</span></div>
                     <div id="reviewer-zumgze-similarity" class="zumgze-similarity text-dark" style="display:none;">
                         <span id="reviewer-zumgze-similarity-label" class="zumgze-score-trigger" title="由 zumgze 设计，用于评估打法和 CHAGA 牌风的相似度（仅供参考）">CHAGA度</span>：<span id="reviewer-zumgze-similarity-value">0.00 / 100</span>
+                        <div id="reviewer-zumgze-similarity-ci" class="zumgze-score-ci" style="display:none;">95% 置信区间：<span id="reviewer-zumgze-similarity-ci-value">0.00 / 100 ～ 0.00 / 100</span></div>
                         <div id="reviewer-zumgze-similarity-help" class="zumgze-score-help" style="display:none;">由 zumgze 设计，用于评估打法和 CHAGA 牌风的相似度（仅供参考）</div>
                     </div>
                 `;
@@ -556,6 +598,8 @@
             const similarityWrapEl = document.getElementById('reviewer-zumgze-similarity');
             const similarityLabelEl = document.getElementById('reviewer-zumgze-similarity-label');
             const similarityValueEl = document.getElementById('reviewer-zumgze-similarity-value');
+            const similarityCiEl = document.getElementById('reviewer-zumgze-similarity-ci');
+            const similarityCiValueEl = document.getElementById('reviewer-zumgze-similarity-ci-value');
             const similarityHelpEl = document.getElementById('reviewer-zumgze-similarity-help');
             if (tbody) {
                 tbody.innerHTML = rowsHtml;
@@ -570,10 +614,19 @@
                 if (currentRefKey === 'chaga') {
                     similarityWrapEl.style.display = '';
                     similarityValueEl.textContent = `${chagaSimilarity.toFixed(2)} / 100`;
+                    if (similarityCiEl && similarityCiValueEl && chagaScoreLower !== null && chagaScoreUpper !== null) {
+                        similarityCiEl.style.display = '';
+                        similarityCiValueEl.textContent = `${chagaScoreLower.toFixed(2)} / 100 ～ ${chagaScoreUpper.toFixed(2)} / 100`;
+                    } else if (similarityCiEl) {
+                        similarityCiEl.style.display = 'none';
+                    }
                 } else {
                     similarityWrapEl.style.display = 'none';
                     if (similarityHelpEl) {
                         similarityHelpEl.style.display = 'none';
+                    }
+                    if (similarityCiEl) {
+                        similarityCiEl.style.display = 'none';
                     }
                 }
             }
