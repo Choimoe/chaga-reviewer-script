@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         雀渣 CHAGA 牌谱分析
-// @version      1.6.2
+// @version      1.6.3
 // @description  适用于雀渣平台的 CHAGA 牌谱分析工具
 // @author       Choimoe
 // @match        https://tziakcha.net/*
@@ -20,6 +20,24 @@
 
     const DEBUG_STORAGE_KEY = '__reviewer_debug';
 
+    const normalizeReviewerDebugUrl = () => {
+        try {
+            const href = window.location.href;
+            if (!href.includes('?reviewer_debug=')) {
+                return;
+            }
+            const url = new URL(href);
+            const normalizedHref = href.replace('?reviewer_debug=', '&reviewer_debug=');
+            if (normalizedHref !== href) {
+                window.history.replaceState(window.history.state, '', normalizedHref);
+                console.warn('[Reviewer] Detected malformed debug query, auto-normalized URL to avoid page API errors');
+            }
+        } catch (e) {
+            console.warn('[Reviewer] Failed to normalize malformed debug query:', e);
+        }
+    };
+    normalizeReviewerDebugUrl();
+
     const logCurrentCookie = () => {
         try {
             const cookieText = document.cookie || '(empty)';
@@ -32,6 +50,9 @@
     const w = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
     const isDebugEnabled = () => {
         try {
+            if (/\?reviewer_debug=1(?:&|$)/.test(w.location.href)) {
+                return true;
+            }
             const qs = new URLSearchParams(w.location.search);
             if (qs.get('reviewer_debug') === '1') {
                 return true;
@@ -62,6 +83,7 @@
     const isRecordPage = () => /^\/record(?:\/|$)/.test(w.location.pathname);
     const isTechPage = () => /^\/user\/tech(?:\/|$)/.test(w.location.pathname);
     const isHistoryPage = () => /^\/history(?:\/|$)/.test(w.location.pathname);
+    const isUserGamePage = () => /^\/user\/game(?:\/|$)/.test(w.location.pathname);
     let tzInstance = null;
     let setReviewError = (msg) => {
         w.__review_error = msg;
@@ -557,16 +579,16 @@
 
     const initHistoryVisit = () => {
         debugLog('initHistoryVisit start');
-        const searchLink = document.querySelector('a[href="/search/"][target="_blank"]');
         const refreshLink = document.getElementById('rfrsh');
         const tbody = document.querySelector('table tbody');
-        if (!searchLink || !refreshLink || !tbody) {
+        if (!refreshLink || !tbody) {
             setTimeout(initHistoryVisit, 100);
             return;
         }
         if (document.getElementById('reviewer-history-visit-btn')) {
             return;
         }
+        const nameCellIndexes = isUserGamePage() ? [2, 4, 6, 8] : [1, 3, 5, 7];
 
         const escapeHtml = (text) => String(text)
             .replace(/&/g, '&amp;')
@@ -586,7 +608,7 @@
             const cells = [];
             rows.forEach((row) => {
                 const tds = row.querySelectorAll('td');
-                [1, 3, 5, 7].forEach((idx) => {
+                nameCellIndexes.forEach((idx) => {
                     if (tds[idx]) {
                         cells.push(tds[idx]);
                     }
@@ -1332,6 +1354,7 @@
         startedRecordHref: '',
         startedTechHref: '',
         startedHistoryHref: '',
+        startedUserGameHref: '',
     };
 
     const runOnRoute = () => {
@@ -1343,6 +1366,7 @@
             record: isRecordPage(),
             tech: isTechPage(),
             history: isHistoryPage(),
+            userGame: isUserGamePage(),
         };
         debugLog('Route changed:', { href, pathname: w.location.pathname, routeFlags });
 
@@ -1369,6 +1393,14 @@
             if (routeState.startedHistoryHref === href) return;
             routeState.startedHistoryHref = href;
             debugLog('Initializing history page branch');
+            setTimeout(initHistoryVisit, 300);
+            return;
+        }
+
+        if (routeFlags.userGame) {
+            if (routeState.startedUserGameHref === href) return;
+            routeState.startedUserGameHref = href;
+            debugLog('Initializing user game page branch');
             setTimeout(initHistoryVisit, 300);
         }
     };
