@@ -4,6 +4,7 @@
 // @description  适用于雀渣平台的 CHAGA 牌谱分析工具
 // @author       Choimoe
 // @match        https://tziakcha.net/record/*
+// @match        https://tziakcha.net/user/tech/*
 // @icon         https://tziakcha.net/favicon.ico
 // @grant        unsafeWindow
 // @inject-into  page
@@ -16,6 +17,8 @@
     'use strict';
  
     const w = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
+    const isRecordPage = /^\/record\//.test(w.location.pathname);
+    const isTechPage = /^\/user\/tech\/?/.test(w.location.pathname);
     let tzInstance = null;
     let setReviewError = (msg) => {
         w.__review_error = msg;
@@ -26,7 +29,7 @@
     };
     const clearReviewError = () => setReviewError('');
     w.setReviewError = setReviewError;
-    if (typeof unsafeWindow === 'undefined') {
+    if (typeof unsafeWindow === 'undefined' && isRecordPage) {
         console.warn('[Reviewer] unsafeWindow unavailable; running in sandbox may fail to capture');
         setReviewError('未能进入页面上下文，可能脚本被沙箱隔离');
     }
@@ -167,7 +170,337 @@
         }, 50);
     };
     
-    interceptTZ();
+    const initTechZumgze = () => {
+        const basicTable = document.getElementById('basic');
+        const eloTable = document.getElementById('elo');
+        if (!basicTable || !eloTable) {
+            setTimeout(initTechZumgze, 100);
+            return;
+        }
+
+        const FAN_ITEMS = [
+            { idx: 36, name: '全不靠' },
+            { idx: 37, name: '组合龙' },
+            { idx: 45, name: '无番和' },
+            { idx: 51, name: '混一色' },
+            { idx: 53, name: '五门齐' },
+            { idx: 60, name: '和绝张' },
+            { idx: 58, name: '不求人' },
+            { idx: 57, name: '全带幺' },
+            { idx: 52, name: '三色三步高' },
+            { idx: 32, name: '一色三连环' },
+            { idx: 20, name: '七对' },
+            { idx: 43, name: '三色三同顺' },
+            { idx: 41, name: '花龙' },
+            { idx: 50, name: '碰碰和' },
+            { idx: 29, name: '清龙' },
+        ];
+
+        const REF_MAPS = {
+            chaga: {
+                label: 'CHAGA均',
+                values: {
+                    全不靠: 3.510,
+                    组合龙: 2.783,
+                    无番和: 2.158,
+                    混一色: 9.560,
+                    五门齐: 11.699,
+                    和绝张: 4.970,
+                    不求人: 7.288,
+                    全带幺: 3.168,
+                    三色三步高: 22.742,
+                    一色三连环: 3.275,
+                    七对: 3.036,
+                    三色三同顺: 8.387,
+                    花龙: 7.490,
+                    碰碰和: 4.473,
+                    清龙: 5.341,
+                },
+            },
+            zha: {
+                label: '渣均',
+                values: {
+                    全不靠: 1.674,
+                    组合龙: 1.370,
+                    无番和: 1.518,
+                    混一色: 8.180,
+                    五门齐: 10.880,
+                    和绝张: 4.710,
+                    不求人: 7.210,
+                    全带幺: 3.137,
+                    三色三步高: 23.144,
+                    一色三连环: 3.428,
+                    七对: 3.329,
+                    三色三同顺: 9.788,
+                    花龙: 9.169,
+                    碰碰和: 5.695,
+                    清龙: 7.748,
+                },
+            },
+        };
+        let currentRefKey = 'chaga';
+        let latestFanData = {};
+
+        const styleId = 'reviewer-zumgze-style';
+        if (!document.getElementById(styleId)) {
+            const style = document.createElement('style');
+            style.id = styleId;
+            style.textContent = `
+                #reviewer-zumgze-wrap .zumgze-summary {
+                    font-weight: 600;
+                }
+                #reviewer-zumgze-wrap .zumgze-similarity {
+                    margin-top: 0.2em;
+                }
+                #reviewer-zumgze-wrap .zumgze-score-trigger {
+                    cursor: help;
+                    text-decoration: underline dotted;
+                    text-underline-offset: 2px;
+                }
+                #reviewer-zumgze-wrap .zumgze-score-help {
+                    margin-top: 0.15em;
+                    font-size: 12px;
+                    color: #6c757d;
+                }
+                #reviewer-zumgze-wrap .zumgze-col-name {
+                    width: 7em;
+                }
+                #reviewer-zumgze-wrap .zumgze-col-player {
+                    width: 6em;
+                }
+                #reviewer-zumgze-wrap .zumgze-col-ref {
+                    width: 6em;
+                }
+                #reviewer-zumgze-wrap .zumgze-bar-wrap {
+                    position: relative;
+                    width: 100%;
+                    height: 20px;
+                    border-radius: 3px;
+                    background: #f8f9fa;
+                    overflow: hidden;
+                }
+                #reviewer-zumgze-wrap .zumgze-bar-zero {
+                    position: absolute;
+                    left: 50%;
+                    top: 0;
+                    bottom: 0;
+                    width: 1px;
+                    background: #6c757d;
+                    opacity: 0.6;
+                    z-index: 1;
+                }
+                #reviewer-zumgze-wrap .zumgze-bar-fill {
+                    position: absolute;
+                    top: 2px;
+                    bottom: 2px;
+                    border-radius: 2px;
+                    z-index: 2;
+                }
+                #reviewer-zumgze-wrap .zumgze-bar-label {
+                    position: absolute;
+                    right: 6px;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    font-size: 12px;
+                    font-weight: 600;
+                    z-index: 3;
+                }
+                #reviewer-zumgze-wrap .zumgze-bar-label-left {
+                    right: auto;
+                    left: 6px;
+                }
+                #reviewer-zumgze-wrap .zumgze-ref-header {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.4em;
+                }
+                #reviewer-zumgze-wrap .zumgze-ref-toolbar {
+                    display: flex;
+                    align-items: center;
+                    justify-content: flex-start;
+                    gap: 0.5em;
+                    margin-bottom: 0.35em;
+                }
+                #reviewer-zumgze-wrap .zumgze-ref-toggle {
+                    font-size: 12px;
+                    line-height: 1.2;
+                    padding: 0.2em 0.65em;
+                }
+                #reviewer-zumgze-wrap .zumgze-table-toggle {
+                    font-size: 12px;
+                    line-height: 1.2;
+                    padding: 0.2em 0.65em;
+                    margin-bottom: 0.35em;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        const renderZumgze = (fan = {}) => {
+            const CHAGA_SIMILARITY_D = 21;
+            const CHAGA_SIMILARITY_C = -0.23;
+            const CHAGA_SIMILARITY_A = 4;
+            latestFanData = fan || {};
+            const currentRef = REF_MAPS[currentRefKey]?.values || REF_MAPS.chaga.values;
+            const total = (fan.c0 || 0) + (fan.d0 || 0);
+            let zumgze = 0;
+            const rows = FAN_ITEMS.map(({ idx, name }) => {
+                const count = (fan[`c${idx}`] || 0) + (fan[`d${idx}`] || 0);
+                const playerPct = total ? (count / total) * 100 : 0;
+                const refPct = currentRef[name];
+                const diff = playerPct - refPct;
+                zumgze += Math.abs(diff);
+                return { name, playerPct, refPct, diff };
+            });
+            const fanCount = rows.length;
+            const chagaH = (value) => 1 / (1 + Math.exp(-CHAGA_SIMILARITY_C * value));
+            const chagaSimilarityRaw = Math.sqrt(chagaH(zumgze - CHAGA_SIMILARITY_D)) * 100 + CHAGA_SIMILARITY_A;
+            const chagaSimilarity = Math.max(0, Math.min(100, chagaSimilarityRaw));
+
+            rows.sort((a, b) => {
+                const aPositive = a.diff >= 0;
+                const bPositive = b.diff >= 0;
+                if (aPositive !== bPositive) {
+                    return bPositive - aPositive;
+                }
+                return b.diff - a.diff;
+            });
+
+            const maxAbsDiff = Math.max(...rows.map((item) => Math.abs(item.diff)), 1e-9);
+            const rowsHtml = rows.map((item) => {
+                const widthPercent = (Math.abs(item.diff) / maxAbsDiff) * 50;
+                const isPositive = item.diff >= 0;
+                const fillStyle = isPositive
+                    ? `right:50%; width:${widthPercent.toFixed(2)}%; background:#dc3545;`
+                    : `left:50%; width:${widthPercent.toFixed(2)}%; background:#198754;`;
+                const labelClass = isPositive ? 'text-danger' : 'text-success zumgze-bar-label-left';
+                return `
+                    <tr>
+                        <td class="text-dark">${item.name}</td>
+                        <td class="text-end text-muted">${item.playerPct.toFixed(3)}</td>
+                        <td class="text-center">
+                            <div class="zumgze-bar-wrap" title="差值 ${item.diff.toFixed(3)}">
+                                <div class="zumgze-bar-zero"></div>
+                                <div class="zumgze-bar-fill" style="${fillStyle}"></div>
+                                <div class="zumgze-bar-label ${labelClass}">${item.diff.toFixed(3)}</div>
+                            </div>
+                        </td>
+                        <td class="text-start text-muted">${item.refPct.toFixed(3)}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            let wrap = document.getElementById('reviewer-zumgze-wrap');
+            if (!wrap) {
+                wrap = document.createElement('div');
+                wrap.id = 'reviewer-zumgze-wrap';
+                wrap.innerHTML = `
+                    <h4 style="margin-top:2em;">分析</h4>
+                    <div class="zumgze-ref-toolbar">
+                        <span id="reviewer-zumgze-ref-label" class="text-muted">当前参考：CHAGA均</span>
+                        <button id="reviewer-zumgze-ref-toggle" type="button" class="btn btn-outline-secondary btn-sm zumgze-ref-toggle">切换到渣均</button>
+                    </div>
+                    <button id="reviewer-zumgze-table-toggle" type="button" class="btn btn-outline-secondary btn-sm zumgze-table-toggle" data-bs-toggle="collapse" data-bs-target="#reviewer-zumgze-table-collapse" aria-expanded="false" aria-controls="reviewer-zumgze-table-collapse">展开表格</button>
+                    <div id="reviewer-zumgze-table-collapse" class="collapse">
+                        <table class="table table-hover table-sm" style="table-layout:fixed;">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th class="zumgze-col-name">番种</th>
+                                    <th class="text-end zumgze-col-player">玩家</th>
+                                    <th></th>
+                                    <th class="text-start zumgze-col-ref">参考</th>
+                                </tr>
+                            </thead>
+                            <tbody id="reviewer-zumgze-tbody"></tbody>
+                        </table>
+                    </div>
+                    <div class="zumgze-summary text-dark"><span id="reviewer-zumgze-summary-label">CHAGA均平均差</span>：<span id="reviewer-zumgze-value">0.000</span></div>
+                    <div id="reviewer-zumgze-similarity" class="zumgze-similarity text-dark" style="display:none;">
+                        <span id="reviewer-zumgze-similarity-label" class="zumgze-score-trigger" title="由 zumgze 设计，用于评估打法和 CHAGA 牌风的相似度">CHAGA度</span>：<span id="reviewer-zumgze-similarity-value">0.00 / 100</span>
+                        <div id="reviewer-zumgze-similarity-help" class="zumgze-score-help" style="display:none;">由 zumgze 设计，用于评估打法和 CHAGA 牌风的相似度</div>
+                    </div>
+                `;
+                const basicHeading = basicTable.previousElementSibling;
+                if (basicHeading && basicHeading.tagName === 'H4') {
+                    basicHeading.parentNode.insertBefore(wrap, basicHeading);
+                } else {
+                    basicTable.parentNode.insertBefore(wrap, basicTable);
+                }
+            }
+
+            const tbody = document.getElementById('reviewer-zumgze-tbody');
+            const valueEl = document.getElementById('reviewer-zumgze-value');
+            const summaryLabelEl = document.getElementById('reviewer-zumgze-summary-label');
+            const refLabelEl = document.getElementById('reviewer-zumgze-ref-label');
+            const refToggleBtn = document.getElementById('reviewer-zumgze-ref-toggle');
+            const tableToggleBtn = document.getElementById('reviewer-zumgze-table-toggle');
+            const tableCollapseEl = document.getElementById('reviewer-zumgze-table-collapse');
+            const similarityWrapEl = document.getElementById('reviewer-zumgze-similarity');
+            const similarityLabelEl = document.getElementById('reviewer-zumgze-similarity-label');
+            const similarityValueEl = document.getElementById('reviewer-zumgze-similarity-value');
+            const similarityHelpEl = document.getElementById('reviewer-zumgze-similarity-help');
+            if (tbody) {
+                tbody.innerHTML = rowsHtml;
+            }
+            if (valueEl) {
+                valueEl.textContent = `${zumgze.toFixed(3)} / ${fanCount} 项番种`;
+            }
+            if (summaryLabelEl) {
+                summaryLabelEl.textContent = `${REF_MAPS[currentRefKey].label}平均差`;
+            }
+            if (similarityWrapEl && similarityValueEl) {
+                if (currentRefKey === 'chaga') {
+                    similarityWrapEl.style.display = '';
+                    similarityValueEl.textContent = `${chagaSimilarity.toFixed(2)} / 100`;
+                } else {
+                    similarityWrapEl.style.display = 'none';
+                    if (similarityHelpEl) {
+                        similarityHelpEl.style.display = 'none';
+                    }
+                }
+            }
+            if (refLabelEl) {
+                refLabelEl.textContent = `当前参考：${REF_MAPS[currentRefKey].label}`;
+            }
+            if (refToggleBtn && !refToggleBtn.dataset.bound) {
+                refToggleBtn.dataset.bound = '1';
+                refToggleBtn.addEventListener('click', () => {
+                    currentRefKey = currentRefKey === 'chaga' ? 'zha' : 'chaga';
+                    renderZumgze(latestFanData);
+                });
+            }
+            if (refToggleBtn) {
+                refToggleBtn.textContent = currentRefKey === 'chaga' ? '切换到渣均' : '切换到CHAGA均';
+            }
+            if (tableToggleBtn && tableCollapseEl && !tableToggleBtn.dataset.bound) {
+                tableToggleBtn.dataset.bound = '1';
+                tableCollapseEl.addEventListener('shown.bs.collapse', () => {
+                    tableToggleBtn.textContent = '收起表格';
+                    tableToggleBtn.setAttribute('aria-expanded', 'true');
+                });
+                tableCollapseEl.addEventListener('hidden.bs.collapse', () => {
+                    tableToggleBtn.textContent = '展开表格';
+                    tableToggleBtn.setAttribute('aria-expanded', 'false');
+                });
+            }
+            if (similarityLabelEl && similarityHelpEl && !similarityLabelEl.dataset.bound) {
+                similarityLabelEl.dataset.bound = '1';
+                similarityLabelEl.addEventListener('click', () => {
+                    similarityHelpEl.style.display = similarityHelpEl.style.display === 'none' ? '' : 'none';
+                });
+            }
+        };
+
+        fetch('/_qry/user/tech/' + w.location.search, {
+            method: 'POST',
+            credentials: 'include',
+        })
+            .then((resp) => resp.json())
+            .then((json) => renderZumgze(json?.fan || {}))
+            .catch((e) => {
+                console.error('[Reviewer] Failed to load zumgze data:', e);
+            });
+    };
     
     const initReviewer = () => {
         if (typeof w.WIND === 'undefined' || typeof w.TILE === 'undefined') {
@@ -768,11 +1101,22 @@
             }
         }, 1000);
     };
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
+    if (isRecordPage) {
+        interceptTZ();
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                setTimeout(initReviewer, 500);
+            });
+        } else {
             setTimeout(initReviewer, 500);
-        });
-    } else {
-        setTimeout(initReviewer, 500);
+        }
+    } else if (isTechPage) {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                setTimeout(initTechZumgze, 300);
+            });
+        } else {
+            setTimeout(initTechZumgze, 300);
+        }
     }
 })();
