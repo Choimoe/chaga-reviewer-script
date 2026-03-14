@@ -1,8 +1,9 @@
 // ==UserScript==
 // @name         雀渣 CHAGA 牌谱分析
-// @version      1.6.1
+// @version      1.6.2
 // @description  适用于雀渣平台的 CHAGA 牌谱分析工具
 // @author       Choimoe
+// @match        https://tziakcha.net/*
 // @match        https://tziakcha.net/record/*
 // @match        https://tziakcha.net/user/tech/*
 // @match        https://tziakcha.net/history/*
@@ -17,6 +18,8 @@
 (function() {
     'use strict';
 
+    const DEBUG_STORAGE_KEY = '__reviewer_debug';
+
     const logCurrentCookie = () => {
         try {
             const cookieText = document.cookie || '(empty)';
@@ -27,9 +30,38 @@
     };
  
     const w = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
-    const isRecordPage = /^\/record\//.test(w.location.pathname);
-    const isTechPage = /^\/user\/tech\/?/.test(w.location.pathname);
-    const isHistoryPage = /^\/history\/?/.test(w.location.pathname);
+    const isDebugEnabled = () => {
+        try {
+            const qs = new URLSearchParams(w.location.search);
+            if (qs.get('reviewer_debug') === '1') {
+                return true;
+            }
+            return w.localStorage?.getItem(DEBUG_STORAGE_KEY) === '1';
+        } catch (e) {
+            return false;
+        }
+    };
+    let debugEnabled = isDebugEnabled();
+    const debugLog = (...args) => {
+        if (debugEnabled) {
+            console.log('[Reviewer][Debug]', ...args);
+        }
+    };
+    w.__reviewerDebug = {
+        isEnabled: () => debugEnabled,
+        setEnabled: (enabled) => {
+            debugEnabled = !!enabled;
+            try {
+                w.localStorage?.setItem(DEBUG_STORAGE_KEY, debugEnabled ? '1' : '0');
+            } catch (e) {}
+            console.log(`[Reviewer] Debug ${debugEnabled ? 'enabled' : 'disabled'}`);
+            return debugEnabled;
+        },
+    };
+
+    const isRecordPage = () => /^\/record(?:\/|$)/.test(w.location.pathname);
+    const isTechPage = () => /^\/user\/tech(?:\/|$)/.test(w.location.pathname);
+    const isHistoryPage = () => /^\/history(?:\/|$)/.test(w.location.pathname);
     let tzInstance = null;
     let setReviewError = (msg) => {
         w.__review_error = msg;
@@ -40,7 +72,7 @@
     };
     const clearReviewError = () => setReviewError('');
     w.setReviewError = setReviewError;
-    if (typeof unsafeWindow === 'undefined' && isRecordPage) {
+    if (typeof unsafeWindow === 'undefined' && isRecordPage()) {
         console.warn('[Reviewer] unsafeWindow unavailable; running in sandbox may fail to capture');
         setReviewError('未能进入页面上下文，可能脚本被沙箱隔离');
     }
@@ -94,8 +126,17 @@
     };
 
     const interceptTZ = () => {
+        debugLog('Installing TZ interceptors for current route', w.location.pathname);
         installDefinePropertyHook();
         const existing = Object.getOwnPropertyDescriptor(w, 'TZ');
+        debugLog('Existing TZ descriptor:', existing ? {
+            configurable: existing.configurable,
+            enumerable: existing.enumerable,
+            writable: existing.writable,
+            hasGetter: typeof existing.get === 'function',
+            hasSetter: typeof existing.set === 'function',
+            valueType: typeof existing.value,
+        } : 'none');
 
         const forceCreateTZ = () => {
             try {
@@ -182,6 +223,7 @@
     };
     
     const initTechZumgze = () => {
+        debugLog('initTechZumgze start');
         const basicTable = document.getElementById('basic');
         const eloTable = document.getElementById('elo');
         if (!basicTable || !eloTable) {
@@ -514,6 +556,7 @@
     };
 
     const initHistoryVisit = () => {
+        debugLog('initHistoryVisit start');
         const searchLink = document.querySelector('a[href="/search/"][target="_blank"]');
         const refreshLink = document.getElementById('rfrsh');
         const tbody = document.querySelector('table tbody');
@@ -680,6 +723,12 @@
     };
     
     const initReviewer = () => {
+        debugLog('initReviewer start', {
+            readyState: document.readyState,
+            pathname: w.location.pathname,
+            hasWIND: typeof w.WIND !== 'undefined',
+            hasTILE: typeof w.TILE !== 'undefined',
+        });
         if (typeof w.WIND === 'undefined' || typeof w.TILE === 'undefined') {
             console.log('[Reviewer] Waiting for game constants...');
             setTimeout(initReviewer, 100);
@@ -1278,33 +1327,95 @@
             }
         }, 1000);
     };
-    if (isRecordPage) {
+    const routeState = {
+        lastHref: '',
+        startedRecordHref: '',
+        startedTechHref: '',
+        startedHistoryHref: '',
+    };
+
+    const runOnRoute = () => {
+        const href = w.location.href;
+        if (routeState.lastHref === href) return;
+        routeState.lastHref = href;
+
+        const routeFlags = {
+            record: isRecordPage(),
+            tech: isTechPage(),
+            history: isHistoryPage(),
+        };
+        debugLog('Route changed:', { href, pathname: w.location.pathname, routeFlags });
+
         logCurrentCookie();
-        interceptTZ();
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => {
-                setTimeout(initReviewer, 500);
-            });
-        } else {
+
+        if (routeFlags.record) {
+            if (routeState.startedRecordHref === href) return;
+            routeState.startedRecordHref = href;
+            debugLog('Initializing record page branch');
+            interceptTZ();
             setTimeout(initReviewer, 500);
+            return;
         }
-    } else if (isTechPage) {
-        logCurrentCookie();
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => {
-                setTimeout(initTechZumgze, 300);
-            });
-        } else {
+
+        if (routeFlags.tech) {
+            if (routeState.startedTechHref === href) return;
+            routeState.startedTechHref = href;
+            debugLog('Initializing tech page branch');
             setTimeout(initTechZumgze, 300);
+            return;
         }
-    } else if (isHistoryPage) {
-        logCurrentCookie();
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => {
-                setTimeout(initHistoryVisit, 300);
-            });
-        } else {
+
+        if (routeFlags.history) {
+            if (routeState.startedHistoryHref === href) return;
+            routeState.startedHistoryHref = href;
+            debugLog('Initializing history page branch');
             setTimeout(initHistoryVisit, 300);
         }
+    };
+
+    const installRouteWatcher = () => {
+        debugLog('Installing route watcher hooks');
+        const notify = () => setTimeout(runOnRoute, 0);
+
+        w.addEventListener('popstate', notify);
+        w.addEventListener('hashchange', notify);
+        w.addEventListener('urlchange', notify);
+
+        const historyObj = w.history;
+        if (historyObj && !historyObj.__reviewer_route_hooked) {
+            const originalPushState = historyObj.pushState;
+            const originalReplaceState = historyObj.replaceState;
+
+            historyObj.pushState = function(...args) {
+                const result = originalPushState.apply(this, args);
+                notify();
+                return result;
+            };
+
+            historyObj.replaceState = function(...args) {
+                const result = originalReplaceState.apply(this, args);
+                notify();
+                return result;
+            };
+
+            historyObj.__reviewer_route_hooked = true;
+        }
+
+        debugLog('Route watcher installed', {
+            hasHistory: !!historyObj,
+            hooked: !!historyObj?.__reviewer_route_hooked,
+        });
+    };
+
+    installRouteWatcher();
+    debugLog('Bootstrapping reviewer script', {
+        href: w.location.href,
+        readyState: document.readyState,
+        debugEnabled,
+    });
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', runOnRoute, { once: true });
+    } else {
+        runOnRoute();
     }
 })();
