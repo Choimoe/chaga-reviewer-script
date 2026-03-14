@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         雀渣 CHAGA 牌谱分析
-// @version      1.6.3
+// @version      1.6.4
 // @description  适用于雀渣平台的 CHAGA 牌谱分析工具
 // @author       Choimoe
 // @match        https://tziakcha.net/*
@@ -20,23 +20,37 @@
 
     const DEBUG_STORAGE_KEY = '__reviewer_debug';
 
-    const normalizeReviewerDebugUrl = () => {
+    const bootstrapReviewerDebugQuery = () => {
         try {
             const href = window.location.href;
-            if (!href.includes('?reviewer_debug=')) {
+            let normalizedHref = href
+                .replace(/？/g, '?')
+                .replace(/＆/g, '&')
+                .replace('?reviewer_debug=', '&reviewer_debug=');
+
+            if (!/[?&]reviewer_debug=/.test(normalizedHref) && normalizedHref === href) {
                 return;
             }
-            const url = new URL(href);
-            const normalizedHref = href.replace('?reviewer_debug=', '&reviewer_debug=');
-            if (normalizedHref !== href) {
-                window.history.replaceState(window.history.state, '', normalizedHref);
-                console.warn('[Reviewer] Detected malformed debug query, auto-normalized URL to avoid page API errors');
+
+            const url = new URL(normalizedHref);
+            const debugParam = url.searchParams.get('reviewer_debug');
+            if (debugParam === '1' || debugParam === '0') {
+                try {
+                    window.localStorage?.setItem(DEBUG_STORAGE_KEY, debugParam);
+                } catch (e) {}
+            }
+
+            url.searchParams.delete('reviewer_debug');
+            const cleanedHref = `${url.origin}${url.pathname}${url.search}${url.hash}`;
+            if (cleanedHref !== href) {
+                window.history.replaceState(window.history.state, '', cleanedHref);
+                console.warn('[Reviewer] Normalized reviewer_debug query and removed it from URL to avoid record page parse errors');
             }
         } catch (e) {
-            console.warn('[Reviewer] Failed to normalize malformed debug query:', e);
+            console.warn('[Reviewer] Failed to normalize reviewer_debug query:', e);
         }
     };
-    normalizeReviewerDebugUrl();
+    bootstrapReviewerDebugQuery();
 
     const logCurrentCookie = () => {
         try {
@@ -84,6 +98,35 @@
     const isTechPage = () => /^\/user\/tech(?:\/|$)/.test(w.location.pathname);
     const isHistoryPage = () => /^\/history(?:\/|$)/.test(w.location.pathname);
     const isUserGamePage = () => /^\/user\/game(?:\/|$)/.test(w.location.pathname);
+    const installRecordJsonParseGuard = () => {
+        if (!isRecordPage()) return;
+        try {
+            if (!w.JSON || typeof w.JSON.parse !== 'function') return;
+            const originalParse = w.JSON.parse;
+            if (originalParse.__reviewer_guarded) return;
+
+            const guardedParse = function(input, ...args) {
+                if (typeof input !== 'string') {
+                    if (input && typeof input === 'object') {
+                        debugLog('Bypassed JSON.parse for non-string object input');
+                        return input;
+                    }
+                    if (input == null) {
+                        return input;
+                    }
+                    return input;
+                }
+                return originalParse.call(this, input, ...args);
+            };
+
+            guardedParse.__reviewer_guarded = true;
+            w.JSON.parse = guardedParse;
+            console.warn('[Reviewer] Installed JSON.parse compatibility guard for record page');
+        } catch (e) {
+            console.warn('[Reviewer] Failed to install JSON.parse guard:', e);
+        }
+    };
+    installRecordJsonParseGuard();
     let tzInstance = null;
     let setReviewError = (msg) => {
         w.__review_error = msg;
