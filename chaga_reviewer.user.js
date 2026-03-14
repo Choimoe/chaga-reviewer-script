@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         雀渣 CHAGA 牌谱分析
-// @version      1.5.1
+// @version      1.6.0
 // @description  适用于雀渣平台的 CHAGA 牌谱分析工具
 // @author       Choimoe
 // @match        https://tziakcha.net/record/*
@@ -416,8 +416,8 @@
                     </div>
                     <div class="zumgze-summary text-dark"><span id="reviewer-zumgze-summary-label">CHAGA均平均差</span>：<span id="reviewer-zumgze-value">0.000</span></div>
                     <div id="reviewer-zumgze-similarity" class="zumgze-similarity text-dark" style="display:none;">
-                        <span id="reviewer-zumgze-similarity-label" class="zumgze-score-trigger" title="由 zumgze 设计，用于评估打法和 CHAGA 牌风的相似度">CHAGA度</span>：<span id="reviewer-zumgze-similarity-value">0.00 / 100</span>
-                        <div id="reviewer-zumgze-similarity-help" class="zumgze-score-help" style="display:none;">由 zumgze 设计，用于评估打法和 CHAGA 牌风的相似度</div>
+                        <span id="reviewer-zumgze-similarity-label" class="zumgze-score-trigger" title="由 zumgze 设计，用于评估打法和 CHAGA 牌风的相似度（仅供参考）">CHAGA度</span>：<span id="reviewer-zumgze-similarity-value">0.00 / 100</span>
+                        <div id="reviewer-zumgze-similarity-help" class="zumgze-score-help" style="display:none;">由 zumgze 设计，用于评估打法和 CHAGA 牌风的相似度（仅供参考）</div>
                     </div>
                 `;
                 const basicHeading = basicTable.previousElementSibling;
