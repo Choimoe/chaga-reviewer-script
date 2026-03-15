@@ -1,3 +1,13 @@
+# 重要通知
+
+由于历史代码架构和维护成本等原因，本仓库中的插件**已停止更新**。
+后续所有功能迭代、问题修复与优化将统一**迁移至新架构脚本**：
+
+🔗 [**tziakcha-stats/tziakcha-player-insights**](https://tziakcha-stats.github.io/tziakcha-player-insights/)
+
+当前版本的代码**仍可正常使用**，但不再保证未来的兼容性与技术支持。
+如您希望获得更稳定的使用体验、更活跃的开发支持以及更现代化的代码结构，强烈建议迁移到上述新仓库。
+
 <p align="center">
 <img width="128px" src="doc/img/icon.png" align="center" alt="Logo" />
 <h2 align="center">雀渣 CHAGA 牌谱分析</h2>
